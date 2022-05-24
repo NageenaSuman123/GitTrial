@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ScriptConfig>
+              <InputFile>D:\Sample.xlsx</InputFile>
+              <TestUrl>http://103.107.198.34:8077/</TestUrl>
+              <UserName>teratext</UserName>
+              <Password>teratext</Password>
+</ScriptConfig>
+
+

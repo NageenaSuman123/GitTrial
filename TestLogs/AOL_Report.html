@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>AOL_Report.html</h1>
+    <p>Report generated on 24-May-2022 at 13:38:58 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "1.0.0", "py": "1.11.0", "pytest": "7.1.2"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.22000-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "2.0.1"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.10.2</td></tr></table>
+    <h2>Summary</h2>
+    <p>1 tests ran in 1165.84 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">1 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">test_AOL.py::TestFramework::test_AOLSite</td>
+          <td class="col-duration">1165.56</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;Xedge.test_AOL.TestFramework object at 0x000002B8E4C873D0&gt;<br/><br/>    def test_AOLSite(self):<br/>        global closeTab<br/>    <br/>        for J in range(0, len(Data.InstruList)):<br/>            self.driver.implicitly_wait(5)<br/>            self.driver.refresh()<br/>            self.driver.find_element_by_link_text(&quot;Browse&quot;).click()  # Navigating to Browse Section<br/>            #******************************  Search Section ************************#<br/>            Y = len(self.driver.find_elements_by_xpath(&quot;//body/div[2]/form[2]/div/table/tbody/tr[2]/td[2]/input&quot;))#No of characters present in &#x27;Browse Versioned Legislation&#x27;<br/>            print(&quot;No of Alphabets present in &#x27;Browse by Legislation section&#x27;=&quot; + str(Y))<br/>            #for a in range(0, len(Data.InstruList)):<br/>            abc = self.driver.find_element_by_xpath(&quot;//body/div[2]/form[2]/div/table/tbody/tr[2]/td[2]&quot;)<br/>            my_char = ord(&#x27;A&#x27;)  # convert char to ascii<br/>            if Data.InstruList[J] is not None:<br/>                while my_char &lt;= ord(Data.CharList[J]):  #Iterating from &#x27;A&#x27; till the first character of instrument name till it gets matched<br/>                    if my_char == ord(Data.CharList[J]):<br/>                        print(Data.CharList[J])<br/>                        abc.find_element_by_xpath(&quot;//input[@value=&#x27;&quot; + Data.CharList[J] + &quot;&#x27;]&quot;).click()   #Opening the link based on first character<br/>                        try:<br/>                            print(Data.InstruList[J])<br/>                            element = self.driver.find_element(By.LINK_TEXT, &quot;show all&quot;)<br/>                            element.is_displayed()<br/>                            element.click()<br/>                            self.driver.find_element(By.LINK_TEXT, Data.InstruList[J]).click()<br/>    <br/>                        except NoSuchElementException:<br/>                            self.driver.find_element(By.LINK_TEXT, Data.InstruList[J]).click()<br/>                    my_char += 1  # iterate over abc<br/>            else:<br/>                continue<br/>    <br/>            parent = self.driver.window_handles[0]<br/>            #__________________________Checking whether instrument is available with nodes/not____________________<br/>            try:<br/>                self.driver.find_element_by_id(&quot;expand_button&quot;)<br/>            except NoSuchElementException:<br/>                print(&quot;No nodes are available for the instrument:&quot; + Data.InstruList[J])   # Writing the no of nodes count if not present to workbook<br/>                Data.sheet.cell(row=J + 2, column=2).value = int(0)<br/>                Data.sheet.cell(row=J + 2, column=3).value = &quot;No timeline nodes are present&quot;<br/>                Data.Workbook.save(&quot;Files\\UserFile.xlsx&quot;)<br/>                continue<br/>            # ****************************  Nodes Loading Section  ***********************#<br/>            Node = self.driver.find_elements_by_xpath(&quot;//body[1]/div[2]/div[1]/div[3]/div[4]/div[1]/div[2]/div[1]/table/tbody/tr/td&quot;)  # Grabbing the no of nodes<br/>            Count = len(Node)<br/>            Data.sheet.cell(row=J+2, column=2).value = Count   #Writing the no of nodes count to workbook<br/>            Data.Workbook.save(&quot;Files\\UserFile.xlsx&quot;)<br/>            print(&quot;No of Nodes available=&quot; + str(Count))<br/>            node = 0<br/>            Explicit = WebDriverWait(self.driver, 5)<br/>            List = []<br/>    <br/>            while node &lt;= Count:  # Initialising the node and iterating till the nth node<br/>                self.driver.find_element_by_id(&quot;expand_button&quot;).click()<br/>                node = node + 1<br/>                getLink = self.driver.find_elements(By.XPATH, &quot;//body[1]/div[2]/div[1]/div[3]/div[4]/div[1]/div[2]/div[1]/table/tbody/tr/td&quot; + &quot;[&quot; + str(node) + &quot;]&quot; + &quot;/a[last()]&quot;)<br/>                for links in getLink:  #To get the instrument document link<br/>                    URL = links.text<br/>                    List.append(URL)<br/>                if node &lt;= Count:  # Loading the nodes one by one till the nth node<br/>                    DateElement = self.driver.find_element_by_xpath(<br/>                    &quot;//body[1]/div[2]/div[1]/div[3]/div[4]/div[1]/div[2]/div[1]/table/tbody/tr/td&quot; + &quot;[&quot; + str(<br/>                    node) + &quot;]&quot;)<br/>                    Date = DateElement.get_attribute(&quot;innerText&quot;)<br/>                    NodeDate = Date.split()[0]<br/>                    Explicit.until(EC.element_to_be_clickable((By.XPATH,&quot;//body[1]/div[2]/div[1]/div[3]/div[4]/div[1]/div[2]/div[1]/table/tbody/tr/td&quot; + &quot;[&quot; + str(node) + &quot;]&quot;))).click()<br/>                    NodeErrList = [&quot;The Versioned Legislation Database System is presently unable to locate the legislation contemplated for the hyperlink that you have selected.  You may wish to locate the legislation concerned by using the Search or Browse functions of the Versioned Legislation Database System.Thank you.&quot;]<br/>&gt;                   NodeText = self.driver.execute_script(&#x27;return document.getElementsByTagName(&quot;span&quot;)[3].textContent&#x27;)<br/><br/>test_AOL.py:81: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/>C:\Program Files\Python 3.10.2\lib\site-packages\selenium\webdriver\remote\webdriver.py:884: in execute_script<br/>    return self.execute(command, {<br/>C:\Program Files\Python 3.10.2\lib\site-packages\selenium\webdriver\remote\webdriver.py:430: in execute<br/>    self.error_handler.check_response(response)<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _<br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x000002B8E4C85C00&gt;<br/>response = {&#x27;status&#x27;: 500, &#x27;value&#x27;: &#x27;{&quot;value&quot;:{&quot;error&quot;:&quot;javascript error&quot;,&quot;message&quot;:&quot;javascript error: Cannot read properties of ...CD291E+627518]\\n\\tBaseThreadInitThunk [0x00007FFE184354E0+16]\\n\\tRtlUserThreadStart [0x00007FFE1A32485B+43]\\n&quot;}}&#x27;}<br/><br/>    def check_response(self, response: Dict[str, Any]) -&gt; None:<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&#x27;status&#x27;, None)<br/>        if not status or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen: str = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&#x27;value&#x27;, None)<br/>            if value_json and isinstance(value_json, str):<br/>                import json<br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&#x27;value&#x27;]<br/>                    status = value.get(&#x27;error&#x27;, None)<br/>                    if not status:<br/>                        status = value.get(&quot;status&quot;, ErrorCode.UNKNOWN_ERROR)<br/>                        message = value.get(&quot;value&quot;) or value.get(&quot;message&quot;)<br/>                        if not isinstance(message, str):<br/>                            value = message<br/>                            message = message.get(&#x27;message&#x27;)<br/>                    else:<br/>                        message = value.get(&#x27;message&#x27;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class: Type[WebDriverException]<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_SHADOW_ROOT:<br/>            exception_class = NoSuchShadowRootException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif status in ErrorCode.INVALID_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER:<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if not value:<br/>            value = response[&#x27;value&#x27;]<br/>        if isinstance(value, str):<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &#x27;message&#x27; in value:<br/>            message = value[&#x27;message&#x27;]<br/>    <br/>        screen = None  # type: ignore[assignment]<br/>        if &#x27;screen&#x27; in value:<br/>            screen = value[&#x27;screen&#x27;]<br/>    <br/>        stacktrace = None<br/>        st_value = value.get(&#x27;stackTrace&#x27;) or value.get(&#x27;stacktrace&#x27;)<br/>        if st_value:<br/>            if isinstance(st_value, str):<br/>                stacktrace = st_value.split(&#x27;\n&#x27;)<br/>            else:<br/>                stacktrace = []<br/>                try:<br/>                    for frame in st_value:<br/>                        line = self._value_or_default(frame, &#x27;lineNumber&#x27;, &#x27;&#x27;)<br/>                        file = self._value_or_default(frame, &#x27;fileName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                        if line:<br/>                            file = &quot;%s:%s&quot; % (file, line)<br/>                        meth = self._value_or_default(frame, &#x27;methodName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                        if &#x27;className&#x27; in frame:<br/>                            meth = &quot;%s.%s&quot; % (frame[&#x27;className&#x27;], meth)<br/>                        msg = &quot;    at %s (%s)&quot;<br/>                        msg = msg % (meth, file)<br/>                        stacktrace.append(msg)<br/>                except TypeError:<br/>                    pass<br/>        if exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &#x27;data&#x27; in value:<br/>                alert_text = value[&#x27;data&#x27;].get(&#x27;text&#x27;)<br/>            elif &#x27;alert&#x27; in value:<br/>                alert_text = value[&#x27;alert&#x27;].get(&#x27;text&#x27;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)  # type: ignore[call-arg]  # mypy is not smart enough here<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.JavascriptException: Message: javascript error: Cannot read properties of undefined (reading &#x27;textContent&#x27;)</span><br/><span class="error">E         (Session info: MicrosoftEdge=101.0.1210.53)</span><br/><span class="error">E       Stacktrace:</span><br/><span class="error">E       Backtrace:</span><br/><span class="error">E       	Microsoft::Applications::Events::EventProperties::unpack [0x00007FF650D7CC42+24658]</span><br/><span class="error">E       	Microsoft::Applications::Events::time_ticks_t::time_ticks_t [0x00007FF650CBD332+539986]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507C0F05+659205]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507C44FA+673018]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507C427B+672379]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507C5186+676230]</span><br/><span class="error">E       	Ordinal0 [0x00007FF65082C99A+1100186]</span><br/><span class="error">E       	Ordinal0 [0x00007FF65081769A+1013402]</span><br/><span class="error">E       	Ordinal0 [0x00007FF65082B9E7+1096167]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6508174B3+1012915]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507EE440+844864]</span><br/><span class="error">E       	Ordinal0 [0x00007FF6507EF848+849992]</span><br/><span class="error">E       	Microsoft::Applications::Events::EventProperty::EventProperty [0x00007FF650A817F8+120584]</span><br/><span class="error">E       	Microsoft::Applications::Events::EventProperty::EventProperty [0x00007FF650A6CE3E+36174]</span><br/><span class="error">E       	Microsoft::Applications::Events::EventProperty::EventProperty [0x00007FF650A7003C+48972]</span><br/><span class="error">E       	Microsoft::Applications::Events::EventProperty::to_string [0x00007FF6508C0716+30806]</span><br/><span class="error">E       	Microsoft::Applications::Events::time_ticks_t::time_ticks_t [0x00007FF650CC4601+569377]</span><br/><span class="error">E       	Microsoft::Applications::Events::time_ticks_t::time_ticks_t [0x00007FF650CC9034+588372]</span><br/><span class="error">E       	Microsoft::Applications::Events::time_ticks_t::time_ticks_t [0x00007FF650CC918D+588717]</span><br/><span class="error">E       	Microsoft::Applications::Events::time_ticks_t::time_ticks_t [0x00007FF650CD291E+627518]</span><br/><span class="error">E       	BaseThreadInitThunk [0x00007FFE184354E0+16]</span><br/><span class="error">E       	RtlUserThreadStart [0x00007FFE1A32485B+43]</span><br/><br/>C:\Program Files\Python 3.10.2\lib\site-packages\selenium\webdriver\remote\errorhandler.py:247: JavascriptException<br/> ------------------------------Captured stdout call------------------------------ <br/>No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+A
+Active Mobility Act 2017
+No of Nodes available=17
+The List of Amending documents present are:
+Amended by
+Act 24 of 2018
+Amended by
+Act 38 of 2018
+Amended by
+Act 38 of 2018
+Amended by
+Act 38 of 2018
+No of Blanks(without PDF links)=1
+No of PDF links=16
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+11
+12
+13
+14
+15
+16
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+17
+20/06/2017 Formal Consolidation 13 February 2017 Act 3 of 2017
+formal
+Matched
+Its a OE node
+14/08/2017 Formal Consolidation 13 February 2017 Act 3 of 2017
+formal
+Matched
+Not matching for the node:2
+15/01/2018 Formal Consolidation 13 February 2017 Act 3 of 2017
+formal
+Matched
+Not matching for the node:3
+30/04/2018 Formal Consolidation 13 February 2017 Act 3 of 2017
+formal
+Matched
+Not matching for the node:4
+01/05/2018 Formal Consolidation 13 February 2017 Act 3 of 2017
+formal
+Matched
+Not matching for the node:5
+01/05/2018 Informal Consolidation 19 April 2018 Amended by Act 24 of 2018
+informal
+Matched
+Matching
+02/01/2019 Informal Consolidation 28 September 2018 Amended by Act 38 of 2018
+informal
+Matched
+Matching
+01/02/2019 Informal Consolidation 28 September 2018 Amended by Act 38 of 2018
+informal
+Matched
+Matching
+03/06/2019 Informal Consolidation 28 September 2018 Amended by Act 38 of 2018
+informal
+Matched
+Matching
+03/04/2020 Informal Consolidation 27 February 2020 Amended by Act 9 of 2020
+informal
+Matched
+Matching
+01/08/2020 Informal Consolidation 27 February 2020 Amended by Act 9 of 2020
+informal
+Matched
+Matching
+28/08/2020 Informal Consolidation 25 June 2020 Amended by Act 26 of 2020
+informal
+Matched
+Matching
+02/12/2020 Informal Consolidation 27 February 2020 Amended by Act 9 of 2020
+informal
+Matched
+Matching
+30/04/2021 Informal Consolidation 25 June 2020 Amended by Act 26 of 2020
+informal
+Matched
+Matching
+29/06/2021 Informal Consolidation 27 February 2020 Amended by Act 9 of 2020
+informal
+Matched
+Matching
+30/06/2021 Informal Consolidation 08 June 2021 Amended by Act 12 of 2021
+informal
+Matched
+Matching
+31/12/2021 Formal Consolidation 31 December 2021 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+A
+Animals and Birds Act
+No of Nodes available=12
+The List of Amending documents present are:
+Amended by
+Act 7 of 1996
+Amended by
+Act 7 of 1997
+Amended by
+Act 10 of 2002
+Amended by
+Act 4 of 2003
+Amended by
+Act 15 of 2010
+Amended by
+Act 48 of 2017
+Amended by
+Act 10 of 2019
+No of Blanks(without PDF links)=8
+No of PDF links=4
+1
+2
+3
+4
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+12
+30/03/1987 Formal Consolidation 30 March 1987 1985 RevEd
+formal
+Matched
+Its a OE node
+02/02/1996 Informal Consolidation 02 February 1996 Amended by Act 7 of 1996
+informal
+Matched
+Matching
+01/10/1997 Informal Consolidation 30 March 1987 Amended by Act 7 of 1997
+informal
+Matched
+Matching
+01/04/2000 Informal Consolidation 30 March 1987 Amended by Act 16 of 2000
+informal
+Matched
+Matching
+15/09/2002 Informal Consolidation 30 March 1987 Amended by Act 10 of 2002
+informal
+Matched
+Matching
+31/12/2002 Formal Consolidation 31 December 2002 2002 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+01/04/2003 Informal Consolidation 31 December 2002 Amended by Act 4 of 2003
+informal
+Matched
+Matching
+02/01/2011 Informal Consolidation 21 June 2010 Amended by Act 15 of 2010
+informal
+Matched
+Matching
+16/01/2015 Informal Consolidation 31 December 2002 Amended by Act 46 of 2014
+informal
+Matched
+Matching
+01/02/2018 Informal Consolidation 31 December 2002 Amended by Act 48 of 2017
+informal
+Matched
+Matching
+01/04/2019 Informal Consolidation 31 December 2002 Amended by Act 10 of 2019
+informal
+Matched
+Matching
+06/10/2020 Formal Consolidation 06 October 2020 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+B
+Bishop of Singapore Ordinance 1911
+No of Nodes available=3
+The List of Amending documents present are:
+Amended by
+Act 7 of 1997
+No of Blanks(without PDF links)=1
+No of PDF links=2
+1
+2
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+3
+30/03/1987 Formal Consolidation 30 March 1987 1985 RevEd
+formal
+Matched
+Its a OE node
+01/10/1997 Informal Consolidation 12 September 1997 Amended by Act 7 of 1997
+informal
+Matched
+Matching
+01/05/2021 Formal Consolidation 01 May 2021 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+B
+Bretton Woods Agreements Act 2021
+No nodes are available for the instrument:Bretton Woods Agreements Act 2021
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+C
+Casino Control Act
+No of Nodes available=16
+The List of Amending documents present are:
+Amended by
+Act 30 of 2008
+Amended by
+Act 22 of 2009
+Amended by
+Act 22 of 2009
+Amended by
+Act 25 of 2009
+Amended by
+Act 4 of 2010
+Amended by
+Act 15 of 2010
+Amended by
+Act 7 of 2011-No records found.
+Amended by
+Act 7 of 2011
+Amended by
+Act 5 of 2018
+Amended by
+Act 40 of 2019
+No of Blanks(without PDF links)=8
+No of PDF links=8
+1
+2
+3
+4
+5
+6
+7
+8
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons-cur.png&#x27;]
+16
+01/06/2006 Formal Consolidation 14 October 2010 Act 10 of 2006
+formal
+Matched
+Its a OE node
+31/10/2007 Formal Consolidation 11 February 2011 2007 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+17/12/2008 Informal Consolidation 15 December 2008 Amended by Act 30 of 2008
+informal
+Retro Node - Matched
+Matching
+15/10/2009 Informal Consolidation 16 October 2009 Amended by Act 22 of 2009
+informal
+Retro Node - Matched
+Matching
+22/10/2009 Informal Consolidation 16 October 2009 Amended by Act 22 of 2009
+informal
+Retro Node - Matched
+Matching
+15/01/2010 Informal Consolidation 13 November 2009 Amended by Act 25 of 2009
+informal
+Retro Node - Matched
+Matching
+05/02/2010 Informal Consolidation 05 February 2010 Amended by Act 4 of 2010
+informal
+Retro Node - Matched
+Matching
+01/03/2010 Informal Consolidation 11 February 2011 Amended by Act 21 of 2008
+informal
+Retro Node - Matched
+Matching
+02/01/2011 Informal Consolidation 21 June 2010 Amended by Act 15 of 2010
+informal
+Retro Node - Matched
+Matching
+01/04/2011 Informal Consolidation 18 March 2011 Amended by Act 7 of 2011
+informal
+Matched
+Matching
+31/01/2013 Informal Consolidation 02 January 2013 Amended by Act 36 of 2012
+informal
+Matched
+Matching
+28/03/2013 Informal Consolidation 28 January 2013 Amended by Act 25 of 2012
+informal
+Matched
+Matching
+01/06/2013 Informal Consolidation 02 January 2013 Amended by Act 36 of 2012
+informal
+Matched
+Matching
+10/03/2014 Informal Consolidation 04 March 2014 Amended by Act 4 of 2014
+informal
+Matched
+Matching
+01/04/2018 Informal Consolidation 05 March 2018 Amended by Act 5 of 2018
+informal
+Matched
+Matching
+02/01/2021 Informal Consolidation 12 December 2019 Amended by Act 40 of 2019
+informal
+Matched
+Matching
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+C
+Census Act 2020
+No nodes are available for the instrument:Census Act 2020
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+D
+Development Loan (1987) Act
+No of Nodes available=2
+The List of Amending documents present are:
+No of Blanks(without PDF links)=2
+No of PDF links=0
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+2
+10/04/1987 Formal Consolidation 10 April 1987 Act 9 of 1987
+formal
+Matched
+Its a OE node
+30/04/1988 Formal Consolidation 30 April 1988 1988 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+D
+Defamation Act 1957
+No of Nodes available=7
+The List of Amending documents present are:
+Amended by
+Act 11 of 1991
+Amended by
+Act 7 of 1997
+Amended by
+Act 40 of 2019
+Amended by
+S 337/2021
+No of Blanks(without PDF links)=5
+No of PDF links=2
+1
+2
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons-cur.png&#x27;]
+7
+30/03/1987 Formal Consolidation 14 October 2010 1985 RevEd
+formal
+Matched
+Its a OE node
+30/11/1991 Informal Consolidation 14 October 2010 Amended by Act 11 of 1991
+informal
+Retro Node - Matched
+Matching
+01/10/1997 Informal Consolidation 14 October 2010 Amended by Act 7 of 1997
+informal
+Retro Node - Matched
+Matching
+28/02/2014 Formal Consolidation 21 February 2014 2014 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+02/01/2021 Informal Consolidation 12 December 2019 Amended by Act 40 of 2019
+informal
+Matched
+Matching
+31/12/2021 Formal Consolidation 31 December 2021 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+10/01/2022 Informal Consolidation 31 December 2021 Amended by S 337/2021
+informal
+Matched
+Matching
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+E
+Empowering Provision Act
+No of Nodes available=2
+The List of Amending documents present are:
+No of Blanks(without PDF links)=1
+No of PDF links=1
+1
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+2
+01/04/2020 Formal Consolidation 24 August 2020 Act 24 of 2020
+formal
+Matched
+Its a OE node
+24/08/2020 Formal Consolidation 24 August 2020 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+F
+Family Justice Act 2014
+No of Nodes available=9
+The List of Amending documents present are:
+Act 27 of 2014
+Amended by
+Act 16 of 2016
+Amended by
+Act 16 of 2016
+Amended by
+Act 16 of 2016
+Amended by
+Act 19 of 2016
+Amended by
+Act 27 of 2018-No records found.
+Amended by
+Act 27 of 2018
+Amended by
+Act 40 of 2019
+No of Blanks(without PDF links)=4
+No of PDF links=5
+1
+2
+3
+4
+5
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/retro-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+9
+01/10/2014 Formal Consolidation 07 June 2016 Act 27 of 2014
+formal
+Matched
+Its a OE node
+01/01/2015 Informal Consolidation 04 October 2018 Act 27 of 2014
+informal
+Retro Node - Matched
+Not matching for the node:2
+10/06/2016 Informal Consolidation 07 June 2016 Amended by Act 16 of 2016
+informal
+Matched
+Matching
+01/12/2016 Informal Consolidation 07 June 2016 Amended by Act 16 of 2016
+informal
+Matched
+Matching
+01/01/2017 Informal Consolidation 07 June 2016 Amended by Act 16 of 2016
+informal
+Matched
+Matching
+01/10/2017 Informal Consolidation 28 September 2016 Amended by Act 19 of 2016
+informal
+Matched
+Matching
+19/12/2018 Informal Consolidation 04 October 2018 Amended by Act 27 of 2018
+informal
+Matched
+Matching
+02/01/2021 Informal Consolidation 12 December 2019 Amended by Act 40 of 2019
+informal
+Matched
+Matching
+12/02/2021 Formal Consolidation 10 February 2021 2021 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+F
+Films Act 1981
+No of Nodes available=10
+The List of Amending documents present are:
+Amended by
+Act 6 of 1997
+Amended by
+Act 10 of 1998
+Amended by
+Act 34 of 2002
+Amended by
+Act 13 of 2009
+Amended by
+Act 22 of 2016
+Amended by
+Act 25 of 2018
+Amended by
+Act 11 of 2021
+No of Blanks(without PDF links)=6
+No of PDF links=4
+1
+2
+3
+4
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons-cur.png&#x27;]
+10
+30/03/1987 Formal Consolidation 30 March 1987 1985 RevEd
+formal
+Matched
+Its a OE node
+01/10/1997 Informal Consolidation 30 March 1987 Amended by Act 6 of 1997
+informal
+Matched
+Matching
+01/04/1998 Informal Consolidation 30 March 1987 Amended by Act 10 of 1998
+informal
+Matched
+Matching
+15/12/1998 Formal Consolidation 15 December 1998 1998 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+01/01/2003 Informal Consolidation 15 December 1998 Amended by Act 34 of 2002
+informal
+Matched
+Matching
+26/05/2009 Informal Consolidation 15 December 1998 Amended by Act 13 of 2009
+informal
+Matched
+Matching
+01/10/2016 Informal Consolidation 29 September 2016 Amended by Act 22 of 2016
+informal
+Matched
+Matching
+29/04/2019 Informal Consolidation 23 April 2018 Amended by Act 25 of 2018
+informal
+Matched
+Matching
+01/07/2021 Formal Consolidation 31 December 2020 2020 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+15/07/2021 Informal Consolidation 23 March 2021 Amended by Act 11 of 2021
+informal
+Matched
+Matching
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+G
+Guardianship of Infants Act 2021
+No nodes are available for the instrument:Guardianship of Infants Act 2021
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+G
+Government Technology Agency Act 2016
+No of Nodes available=3
+The List of Amending documents present are:
+Amended by
+Act 5 of 2018
+No of Blanks(without PDF links)=0
+No of PDF links=3
+1
+2
+3
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons-cur.png&#x27;]
+3
+01/10/2016 Formal Consolidation 29 September 2016 Act 23 of 2016
+formal
+Matched
+Its a OE node
+01/04/2018 Informal Consolidation 05 March 2018 Amended by Act 5 of 2018
+informal
+Matched
+Matching
+01/07/2021 Formal Consolidation 31 December 2020 2021 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+H
+Hire-Purchase Act
+No of Nodes available=8
+The List of Amending documents present are:
+Amended by
+Act 15 of 1995-No records found.
+Amended by
+Act 15 of 1995
+Amended by
+Act 38 of 2004
+Amended by
+Act 7 of 2012
+Amended by
+Act 11 of 2013
+Amended by
+Act 12 of 2021
+No of Blanks(without PDF links)=6
+No of PDF links=2
+1
+2
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons-cur.png&#x27;]
+8
+30/03/1987 Formal Consolidation 30 March 1987 1985 RevEd
+formal
+Matched
+Its a OE node
+15/07/1995 Informal Consolidation 30 March 1987 Amended by Act 15 of 1995
+informal
+Matched
+Matching
+30/12/1999 Formal Consolidation 30 December 1999 1999 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+01/11/2004 Informal Consolidation 30 December 1999 Amended by Act 38 of 2004
+informal
+Matched
+Matching
+01/09/2012 Informal Consolidation 30 December 1999 Amended by Act 7 of 2012
+informal
+Matched
+Matching
+18/04/2013 Informal Consolidation 30 December 1999 Amended by Act 11 of 2013
+informal
+Matched
+Matching
+30/04/2014 Formal Consolidation 30 April 2014 2014 RevEd
+formal
+Matched
+Its a Spent/RevisedEdition node
+31/03/2021 Informal Consolidation 01 March 2021 Amended by Act 12 of 2021
+informal
+Matched
+Matching
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+H
+Human Biomedical Research Act 2015
+No of Nodes available=5
+The List of Amending documents present are:
+Amended by
+S 623/2017
+Amended by
+S 334/2019
+No of Blanks(without PDF links)=0
+No of PDF links=5
+1
+2
+3
+4
+5
+[&#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/formal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons.png&#x27;, &#x27;http://103.107.198.34:8077/images/timeline/informal-cons-cur.png&#x27;]
+5
+01/07/2016 Formal Consolidation 21 August 2015 Act 29 of 2015
+formal
+Matched
+Its a OE node
+01/01/2017 Formal Consolidation 21 August 2015 Act 29 of 2015
+formal
+Matched
+Not matching for the node:2
+01/11/2017 Formal Consolidation 21 August 2015 Act 29 of 2015
+formal
+Matched
+Not matching for the node:3
+02/11/2017 Informal Consolidation 30 October 2017 Amended by S 623/2017
+informal
+Matched
+Matching
+26/04/2019 Informal Consolidation 30 October 2017 Amended by S 334/2019
+informal
+Matched
+Matching
+No of Alphabets present in &#x27;Browse by Legislation section&#x27;=26
+I
+Income Tax Act
+No of Nodes available=238
+<br/></div></td></tr></tbody></table></body></html>
